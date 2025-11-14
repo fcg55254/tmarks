@@ -1,0 +1,65 @@
+name: Sync fork from upstream
+
+on:
+  schedule:
+    # 每天 00:00 (UTC) 同步一次；按需修改 cron
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      strategy:
+        description: '同步策略: merge 或 rebase'
+        required: false
+        default: 'merge'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # 如果目标分支受保护且需要更高权限，请在仓库 Secrets 中添加 PERSONAL_ACCESS_TOKEN（带 repo 权限）
+          # 并取消下一行注释以使用它：
+          # token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+      - name: Set git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          # 上游仓库，按需修改为你 fork 的上游（当前例子为 ai-tmarks/tmarks）
+          git remote add upstream https://github.com/ai-tmarks/tmarks.git || true
+
+      - name: Fetch upstream
+        run: git fetch upstream --prune
+
+      - name: Checkout target branch
+        run: |
+          # 修改为你想要同步的分支（默认 main）
+          git checkout main
+
+      - name: Update from upstream (merge or rebase)
+        env:
+          STRATEGY: ${{ github.event.inputs.strategy || 'merge' }}
+        run: |
+          set -e
+          echo "Using strategy: $STRATEGY"
+          if [ "$STRATEGY" = "rebase" ]; then
+            # 若出现冲突，则 rebase 会失败并退出（你需要本地手动解决）
+            git rebase upstream/main
+          else
+            # 尝试自动合并；若有冲突，合并中止并使 job 失败
+            if ! git merge --no-edit upstream/main; then
+              git merge --abort || true
+              echo "::error::Merge conflicts detected. Resolve manually."
+              exit 1
+            fi
+          fi
+
+      - name: Push changes to fork
+        run: |
+          # 直接推送到当前仓库（fork）
+          git push origin main
