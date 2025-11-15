@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { CheckCircle } from 'lucide-react'
 import { TagSidebar } from '@/components/tags/TagSidebar'
 import { BookmarkListContainer } from '@/components/bookmarks/BookmarkListContainer'
 import { BookmarkForm } from '@/components/bookmarks/BookmarkForm'
+import { BatchActionBar } from '@/components/bookmarks/BatchActionBar'
 import { PaginationFooter } from '@/components/common/PaginationFooter'
 import { SortSelector, type SortOption } from '@/components/common/SortSelector'
 import { useInfiniteBookmarks } from '@/hooks/useBookmarks'
@@ -129,8 +131,11 @@ export function BookmarksPage() {
   const [viewMode, setViewMode] = useState<ViewMode>(() => getStoredViewMode() ?? 'card')
   const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>('all')
   const [tagLayout, setTagLayout] = useState<'grid' | 'masonry'>('grid')
+  const [sortByInitialized, setSortByInitialized] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingBookmark, setEditingBookmark] = useState<Bookmark | null>(null)
+  const [batchMode, setBatchMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [isTagSidebarOpen, setIsTagSidebarOpen] = useState(false)
   const previousCountRef = useRef(0)
   const autoCleanupTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -184,7 +189,7 @@ export function BookmarksPage() {
     return () => clearTimeout(timer)
   }, [searchKeyword])
 
-  // 初始化视图模式
+  // 初始化视图模式和排序方式
   useEffect(() => {
     if (preferences?.view_mode && isValidViewMode(preferences.view_mode)) {
       const storedMode = getStoredViewMode()
@@ -200,7 +205,13 @@ export function BookmarksPage() {
     if (preferences?.tag_layout) {
       setTagLayout(preferences.tag_layout)
     }
-  }, [preferences])
+
+    // 从数据库加载排序方式
+    if (preferences?.sort_by && !sortByInitialized) {
+      setSortBy(preferences.sort_by)
+      setSortByInitialized(true)
+    }
+  }, [preferences, sortByInitialized])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -439,6 +450,36 @@ export function BookmarksPage() {
     updatePreferences.mutate({ tag_layout: layout })
   }
 
+  const handleSortByChange = (sort: SortOption) => {
+    setSortBy(sort)
+    // 保存到用户偏好设置
+    updatePreferences.mutate({ sort_by: sort })
+  }
+
+  const handleToggleSelect = (bookmarkId: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(bookmarkId)
+        ? prev.filter((id) => id !== bookmarkId)
+        : [...prev, bookmarkId]
+    )
+  }
+
+  const handleSelectAll = () => {
+    setSelectedIds(filteredBookmarks.map((b) => b.id))
+  }
+
+  const handleClearSelection = () => {
+    setSelectedIds([])
+    setBatchMode(false)
+  }
+
+  const handleBatchSuccess = () => {
+    setSelectedIds([])
+    setBatchMode(false)
+    bookmarksQuery.refetch()
+    refetchTags()
+  }
+
   const visibilityMenuPortal =
     typeof document !== 'undefined' && isVisibilityMenuOpen && visibilityMenuPosition
       ? createPortal(
@@ -464,7 +505,7 @@ export function BookmarksPage() {
                 className={`w-full px-3 py-2 text-sm flex items-center gap-2 transition-colors ${
                   visibilityFilter === option
                     ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-base-content/80 hover:bg-base-200/60'
+                    : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
                 <VisibilityIcon filter={option} />
@@ -501,7 +542,7 @@ export function BookmarksPage() {
                 className={`w-full px-3 py-2 text-sm flex items-center gap-2 transition-colors ${
                   viewMode === modeOption
                     ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-base-content/80 hover:bg-base-200/60'
+                    : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
                 <ViewModeIcon mode={modeOption} />
@@ -564,7 +605,7 @@ export function BookmarksPage() {
                 {/* 搜索框 */}
                 <div className="flex-1">
                   <div className="relative">
-                    <svg className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-base-content/40 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                     <input
@@ -583,7 +624,7 @@ export function BookmarksPage() {
                 <div className="relative flex-1 sm:flex-initial">
                   <SortSelector
                     value={sortBy}
-                    onChange={setSortBy}
+                    onChange={handleSortByChange}
                     className="w-full sm:w-auto"
                   />
                 </div>
@@ -595,7 +636,7 @@ export function BookmarksPage() {
                       onClick={toggleVisibilityMenu}
                       className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center transition-all shadow-float touch-manipulation ${
                         visibilityFilter === 'all'
-                          ? 'bg-base-200 text-base-content/80 hover:bg-base-300'
+                          ? 'bg-muted text-foreground hover:bg-muted/80'
                           : visibilityFilter === 'public'
                             ? 'bg-success/10 text-success hover:bg-success/20'
                             : 'bg-warning/10 text-warning hover:bg-warning/20'
@@ -608,11 +649,31 @@ export function BookmarksPage() {
                     </button>
                   </div>
 
+                  {/* 批量操作按钮 */}
+                  <button
+                    onClick={() => {
+                      setBatchMode(!batchMode)
+                      if (batchMode) {
+                        setSelectedIds([])
+                      }
+                    }}
+                    className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center transition-all shadow-float touch-manipulation ${
+                      batchMode
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-foreground hover:bg-muted/80'
+                    }`}
+                    title={batchMode ? '退出批量操作' : '批量操作'}
+                    aria-label={batchMode ? '退出批量操作' : '批量操作'}
+                    type="button"
+                  >
+                    <CheckCircle className="w-5 h-5" />
+                  </button>
+
                   <div className="relative">
                     <button
                       ref={viewMenuButtonRef}
                       onClick={toggleViewMenu}
-                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center transition-all shadow-float bg-base-200 text-base-content/80 hover:bg-base-300 touch-manipulation"
+                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center transition-all shadow-float bg-muted text-foreground hover:bg-muted/80 touch-manipulation"
                       title="切换视图"
                       aria-label="切换视图"
                       type="button"
@@ -638,6 +699,43 @@ export function BookmarksPage() {
 
           </div>
 
+          {/* 批量操作提示栏 */}
+          {batchMode && (
+            <div className="card bg-primary/10 border border-primary/20 mb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium text-foreground">
+                    {selectedIds.length > 0
+                      ? `已选择 ${selectedIds.length} 个书签`
+                      : '请选择要操作的书签'}
+                  </span>
+                  {selectedIds.length < filteredBookmarks.length && (
+                    <>
+                      <span className="text-border">|</span>
+                      <button
+                        onClick={handleSelectAll}
+                        className="text-sm text-primary hover:text-primary/80 transition-colors"
+                      >
+                        全选当前页 ({filteredBookmarks.length})
+                      </button>
+                    </>
+                  )}
+                  {selectedIds.length > 0 && (
+                    <>
+                      <span className="text-border">|</span>
+                      <button
+                        onClick={handleClearSelection}
+                        className="text-sm text-primary hover:text-primary/80 transition-colors"
+                      >
+                        取消选择
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 书签列表 */}
           <BookmarkListContainer
             bookmarks={filteredBookmarks}
@@ -645,6 +743,9 @@ export function BookmarksPage() {
             viewMode={viewMode}
             onEdit={handleOpenForm}
             previousCount={previousCountRef.current}
+            batchMode={batchMode}
+            selectedIds={selectedIds}
+            onToggleSelect={handleToggleSelect}
           />
 
           {/* 分页控制 */}
@@ -666,7 +767,7 @@ export function BookmarksPage() {
         <div className="fixed inset-0 z-50 lg:hidden">
           {/* 背景遮罩 */}
           <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
             onClick={() => setIsTagSidebarOpen(false)}
           />
 
@@ -713,6 +814,15 @@ export function BookmarksPage() {
           bookmark={editingBookmark}
           onClose={handleCloseForm}
           onSuccess={handleFormSuccess}
+        />
+      )}
+
+      {/* 批量操作栏 */}
+      {batchMode && selectedIds.length > 0 && (
+        <BatchActionBar
+          selectedIds={selectedIds}
+          onClearSelection={handleClearSelection}
+          onSuccess={handleBatchSuccess}
         />
       )}
       </div>

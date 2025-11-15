@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { X, Copy, Check, Share2, Eye } from 'lucide-react'
 import { tabGroupsService } from '@/services/tab-groups'
 import type { Share } from '@/lib/types'
@@ -16,33 +16,33 @@ export function ShareDialog({ groupId, groupTitle, onClose }: ShareDialogProps) 
   const [isCopied, setIsCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadOrCreateShare()
-  }, [groupId])
-
-  const loadOrCreateShare = async () => {
+  const loadOrCreateShare = useCallback(async () => {
     try {
       setIsLoading(true)
       setError(null)
-      
+
       // Try to get existing share
       try {
         const response = await tabGroupsService.getShare(groupId)
         setShare(response.share)
         setShareUrl(response.share_url)
-      } catch (err) {
+      } catch {
         // If no share exists, create one
         const response = await tabGroupsService.createShare(groupId, { is_public: true })
         setShare(response.share)
         setShareUrl(response.share_url)
       }
-    } catch (err) {
-      console.error('Failed to load/create share:', err)
+    } catch (error) {
+      console.error('Failed to load/create share:', error)
       setError('创建分享链接失败')
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [groupId])
+
+  useEffect(() => {
+    loadOrCreateShare()
+  }, [loadOrCreateShare])
 
   const handleCopy = async () => {
     try {
@@ -70,7 +70,7 @@ export function ShareDialog({ groupId, groupTitle, onClose }: ShareDialogProps) 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="rounded shadow-xl max-w-md w-full" style={{backgroundColor: 'var(--card)'}}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
