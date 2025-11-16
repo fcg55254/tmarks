@@ -206,26 +206,29 @@ export function SortSelector({ value, onChange, className = '' }: SortSelectorPr
           type="button"
           onClick={handleToggle}
           className={`
-            w-full sm:w-auto min-w-[160px] h-11 px-4 py-2
-            bg-card border border-border rounded-xl
-            flex items-center justify-between gap-3
+            w-auto min-w-[120px] sm:min-w-[160px] h-11 px-3 sm:px-4 py-2
+            border border-border rounded-xl
+            flex items-center justify-between gap-2 sm:gap-3
             text-sm font-medium text-foreground
             transition-all duration-200 ease-out
-            hover:bg-muted hover:border-primary/30
+            hover:border-primary/30
             focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary
             shadow-sm hover:shadow-md
-            ${isOpen ? 'bg-muted border-primary/50 shadow-md' : ''}
+            ${isOpen ? 'border-primary/50 shadow-md' : ''}
           `}
+          style={{
+            backgroundColor: isOpen ? 'var(--muted)' : 'var(--card)',
+          }}
           aria-expanded={isOpen}
           aria-haspopup="listbox"
           aria-label="选择排序方式"
         >
-          <div className="flex items-center gap-2">
-            <CurrentIcon className="w-4 h-4 text-primary" />
-            <span className="truncate">{currentOption?.label}</span>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <CurrentIcon className="w-4 h-4 text-primary flex-shrink-0" />
+            <span className="truncate text-xs sm:text-sm">{currentOption?.label}</span>
           </div>
           <ChevronDown
-            className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${
+            className={`w-4 h-4 text-muted-foreground transition-transform duration-200 flex-shrink-0 ${
               isOpen ? 'rotate-180' : ''
             }`}
           />
