@@ -252,9 +252,13 @@ export function AiSettingsTab() {
             }}
             className="sr-only peer"
           />
-          <div className={`w-11 h-6 rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full ${
-            enabled ? 'bg-primary' : 'bg-muted'
-          }`}></div>
+          <div className={`w-11 h-6 rounded-full transition-colors duration-200 ease-in-out relative ${
+            enabled ? 'bg-primary' : 'bg-muted-foreground/30'
+          } peer-focus:ring-2 peer-focus:ring-primary/20`}>
+            <div className={`absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out ${
+              enabled ? 'translate-x-5' : 'translate-x-0'
+            }`} />
+          </div>
         </label>
       </div>
 
@@ -362,7 +366,7 @@ export function AiSettingsTab() {
           </div>
           
           {showModelDropdown && allModels.length > 0 && (
-            <div className="absolute z-10 mt-2 right-0 w-full max-h-64 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg">
+            <div className="absolute z-10 mt-2 right-0 w-full max-h-64 overflow-y-auto rounded-lg border border-border bg-card shadow-lg">
               {allModels.map((m) => (
                 <button
                   key={m}
@@ -375,7 +379,7 @@ export function AiSettingsTab() {
                   className={`w-full text-left px-3 py-2 text-sm transition-colors ${
                     model === m
                       ? 'bg-primary/10 text-primary'
-                      : 'text-foreground hover:bg-muted'
+                      : 'text-foreground hover:bg-muted/50'
                   }`}
                 >
                   {m}
